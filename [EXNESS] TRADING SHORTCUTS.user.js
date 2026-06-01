@@ -14,11 +14,11 @@
 // ==================== CONFIGURATION ====================
 
 const CONFIG = {
-  // [button label, search term]
+  // [button label, button id]
   symbols: [
-    ['BTC', 'BITCOIN VS US DOLLAR'],
-    ['XAU/USD', 'XAU/USD'],
-    ['ETH', 'ETH'],
+    ['BTC', 'BTCUSD'],
+    ['XAU/USD', 'XAUUSD'],
+    ['ETH', 'ETHUSD'],
   ],
   theme: {
     '--c-background-default': '#000000',
@@ -477,20 +477,11 @@ function handleSymbolChange(e) {
         .parentElement.parentElement.parentElement
       if (popup) popup.style.opacity = '0'
 
-      searchBox.value = searchTerm
+      searchBox.value = symbolName
       searchBox.dispatchEvent(new Event('input', { bubbles: true }))
 
-      setTimeout(() => {
-        searchBox.dispatchEvent(
-          new KeyboardEvent('keydown', {
-            key: 'Enter',
-            code: 'Enter',
-            keyCode: 13,
-            which: 13,
-            bubbles: true,
-          }),
-        )
-      }, 150)
+      waitForElement(`[data-symbol-name="${searchTerm}"]`, 5000, doc)
+        .then(item => item.click())
     })
     .catch(() => {})
 }
