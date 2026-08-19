@@ -1,74 +1,97 @@
-# Userscripts
+<div align="center">
 
-A collection of Violentmonkey userscripts for trading, email, and YouTube.
+# ⚡ Userscripts
 
-## Scripts
+**A powerful collection of Violentmonkey userscripts for trading, email, YouTube, and comics.**
 
-| Script                       | Description                                                  | Install                                                                                                                 |
-| ---------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| `[COMIC] AUTO SCROLL`        | Auto scroll for comic reader with speed control and pause    | [Install](https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BCOMIC%5D%20AUTO%20SCROLL.user.js)        |
-| `[YT] CHAT`                  | Shows author message history on hover in YouTube live chat   | [Install](https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BYT%5D%20CHAT.user.js)                    |
-| `[YT] PLAYBACK SPEED`        | Smooth animated playback speed control with +/- keys         | [Install](https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BYT%5D%20PLAYBACK%20SPEED.user.js)        |
-| `[MAIL] FILTER BY DOMAIN`    | Filter Gmail inbox by sender domain with one click           | [Install](https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BMAIL%5D%20FILTER%20MENU.user.js)         |
-| `[EXNESS] TRADING SHORTCUTS` | Quick trade mode with keyboard shortcuts for Exness terminal | [Install](https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BEXNESS%5D%20TRADING%20SHORTCUTS.user.js) |
-| `[TVC] TOOL SHORTCUTS`       | Keyboard shortcuts for TradingView chart tools               | [Install](https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BTVC%5D%20TOOL%20SHORTCUTS.user.js)       |
+[![Violentmonkey](https://img.shields.io/badge/Violentmonkey-Required-orange?style=for-the-badge&logo=firefox-browser&logoColor=white)](https://violentmonkey.github.io/get-it/)
+[![Userscripts](https://img.shields.io/badge/Scripts-6-blueviolet?style=for-the-badge)](https://github.com/downloaddoctor/userscripts)
+[![GitHub Pages](https://img.shields.io/badge/Install%20All-Click%20Here-success?style=for-the-badge&logo=github)](https://downloaddoctor.github.io/userscripts/)
 
-## Install All
+</div>
 
-Click **[Install All](https://downloaddoctor.github.io/userscripts/)** to open all script install URLs in separate tabs at once.
+---
 
-## Setup
+## 🚀 Quick Install All
 
-1. Install the [Violentmonkey](https://violentmonkey.github.io/get-it/) extension
-2. Click any **Install** link above
-3. Violentmonkey will detect the script and show an install prompt
+<div align="center">
+
+|                                   |                                                                     |
+| --------------------------------- | ------------------------------------------------------------------- |
+| **One-click install all scripts** | [**⚡ Install All**](https://downloaddoctor.github.io/userscripts/) |
+
+</div>
+
+> Opens all script install URLs in separate tabs at once.
+
+---
+
+## 📦 Scripts
+
+| Script                                                                                                                              | Description                                     | Install                                                                                                                 |
+| ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| <img src="https://comix.to/assets/uploads/35595e3de3c99889c1bd2c56f3e3714fc0c457.png" width="16" height="16"> `[COMIC] AUTO SCROLL` | Auto scroll for comic reader with speed control | [Install](https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BCOMIC%5D%20AUTO%20SCROLL.user.js)        |
+| <img src="https://www.youtube.com/s/desktop/2279fdfc/img/favicon.ico" width="16" height="16"> `[YT] CHAT`                           | Message history on hover in YouTube live chat   | [Install](https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BYT%5D%20CHAT.user.js)                    |
+| <img src="https://www.youtube.com/s/desktop/1904e31a/img/favicon.ico" width="16" height="16"> `[YT] PLAYBACK SPEED`                 | Smooth animated playback speed control          | [Install](https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BYT%5D%20PLAYBACK%20SPEED.user.js)        |
+| <img src="https://ssl.gstatic.com/ui/v1/icons/mail/rfr/gmail.ico" width="16" height="16"> `[MAIL] FILTER BY DOMAIN`                 | Filter Gmail inbox by sender domain             | [Install](https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BMAIL%5D%20FILTER%20MENU.user.js)         |
+| <img src="https://my.exness.com/cnf/favicon.ico" width="16" height="16"> `[EXNESS] TRADING SHORTCUTS`                               | Quick trade mode with keyboard shortcuts        | [Install](https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BEXNESS%5D%20TRADING%20SHORTCUTS.user.js) |
+| <img src="https://static.tradingview.com/static/images/favicon.ico" width="16" height="16"> `[TVC] TOOL SHORTCUTS`                  | Keyboard shortcuts for TradingView tools        | [Install](https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BTVC%5D%20TOOL%20SHORTCUTS.user.js)       |
+
+---
+
+## 🔧 Setup
+
+1. Install [Violentmonkey](https://violentmonkey.github.io/get-it/) extension
+2. Click any **Install** link above — or use **⚡ Install All**
+3. Violentmonkey detects the script and shows an install prompt
 4. Click **Confirm installation**
 
-## Auto-updates
+## 🔄 Auto-updates
 
 Violentmonkey checks for updates automatically. Each script includes `@updateURL` pointing to this repo.
 
-## Usage
+---
 
-### [COMIC] AUTO SCROLL — Comic Reader Auto Scroll
+## 📖 Usage
+
+### <img src="https://comix.to/assets/uploads/35595e3de3c99889c1bd2c56f3e3714fc0c457.png" width="20" height="20"> [COMIC] AUTO SCROLL — Comic Reader
 
 - Works on `comix.to/*` comic reader pages
 - Press **Space** to start/stop auto scroll
 - Press **+**/**-** to change scroll speed
 - Press **←**/**→** to switch chapters
-- Click the speed display (e.g. `3x`) to cycle through presets
-- Auto pauses at the end of each page, then continues to the next
+- Click the speed display (e.g. `3x`) to cycle presets
+- Auto pauses at page end, then continues
 - Auto fullscreen on first interaction
 
-### [YT] CHAT — YouTube Live Chat
+### <img src="https://www.youtube.com/s/desktop/2279fdfc/img/favicon.ico" width="20" height="20"> [YT] CHAT — Live Chat History
 
-- Works on `youtube.com/live_chat*` pages
-- **Hover** over any chat message to see that author's message history
-- Shows unique messages grouped with duplicate counts (x2, x3, etc.)
+- Works on `youtube.com/live_chat*`
+- **Hover** any chat message to see author history
+- Shows unique messages with duplicate counts (x2, x3…)
 
-### [YT] PLAYBACK SPEED — Video Speed Control
+### <img src="https://www.youtube.com/s/desktop/1904e31a/img/favicon.ico" width="20" height="20"> [YT] PLAYBACK SPEED — Video Speed
 
-- Works on any `youtube.com` page with a video
-- Press **+** to increase speed, **-** to decrease
-- Smooth animated transitions between speeds
+- Works on any `youtube.com` page with video
+- Press **+** / **-** to change speed
+- Smooth animated transitions
 - Default speeds: 1x, 1.25x, 1.5x, 1.75x, 2x, 2.5x, 3x, 9x
-- A HUD appears briefly showing the current speed
+- HUD appears briefly showing current speed
 
-### [MAIL] FILTER BY DOMAIN — Gmail Domain Filter
+### <img src="https://ssl.gstatic.com/ui/v1/icons/mail/rfr/gmail.ico" width="20" height="20"> [MAIL] FILTER BY DOMAIN — Gmail Filter
 
 - Works on `mail.google.com`
-- Click the blue **Filter** button (top-right corner)
-- Panel opens showing sender domains sorted by frequency
-- Check/uncheck domains, use **All** / **None** to toggle
-- Click **Apply** to filter inbox by selected domains
-- Click outside or the × to close
+- Click blue **Filter** button (top-right)
+- Panel shows sender domains sorted by frequency
+- Check/uncheck domains, use **All** / **None**
+- Click **Apply** to filter inbox
+- Click outside or × to close
 
-### [EXNESS] TRADING SHORTCUTS — Quick Trade Mode
+### <img src="https://my.exness.com/cnf/favicon.ico" width="20" height="20"> [EXNESS] TRADING SHORTCUTS — Quick Trade
 
 - Works on `my.exness.com/webtrading/*`
 - Press **Ctrl+Q** to toggle quick trade mode
 - When enabled (green QUICK indicator):
-  - Help panel appears showing all shortcuts
   - **Alt+↑** — Place buy order
   - **Alt+↓** — Place sell order
   - **Alt+X** — Close current position
@@ -77,19 +100,29 @@ Violentmonkey checks for updates automatically. Each script includes `@updateURL
   - **↑/↓** — Switch chart symbol
   - **←/→** — Switch chart interval
   - **Shift+F** — Toggle fullscreen
-- Press **Esc** or click outside to hide the help panel
+- Press **Esc** to hide help panel
 
-### [TVC] TOOL SHORTCUTS — TradingView Chart Tools
+### <img src="https://static.tradingview.com/static/images/favicon.ico" width="20" height="20"> [TVC] TOOL SHORTCUTS — TradingView
 
 - Works on `tradingview.com` charts
-- Press **Ctrl+/** to show/hide the shortcuts panel
+- **Ctrl+/** — Show/hide shortcuts panel
 - **Ctrl+Z** / **Ctrl+Y** — Undo / Redo
 - **Ctrl+A** — Select all drawings
 - **Ctrl+Shift+A** — Select all locked drawings
-- **Ctrl+L** — Toggle lock on selected drawings
+- **Ctrl+L** — Toggle lock
 - **Ctrl+Backspace** — Remove all drawings
 - **←/→** — Switch interval
 - **Alt+1–9** — Select favorite tool
 - **Ctrl+1–9** — Apply template
 - **Ctrl+Alt+S** — Take snapshot
-- Press **Esc** or click outside to close the panel
+- Press **Esc** to close panel
+
+---
+
+<div align="center">
+
+**Made with ❤️ for the Violentmonkey community**
+
+[Report Bug](https://github.com/downloaddoctor/userscripts/issues) · [Request Feature](https://github.com/downloaddoctor/userscripts/issues)
+
+</div>
