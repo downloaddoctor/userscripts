@@ -6,11 +6,16 @@ A collection of Violentmonkey userscripts for trading, email, and YouTube.
 
 | Script                       | Description                                                  | Install                                                                                                                 |
 | ---------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `[COMIC] AUTO SCROLL`        | Auto scroll for comic reader with speed control and pause    | [Install](https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BCOMIC%5D%20AUTO%20SCROLL.user.js)        |
 | `[YT] CHAT`                  | Shows author message history on hover in YouTube live chat   | [Install](https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BYT%5D%20CHAT.user.js)                    |
 | `[YT] PLAYBACK SPEED`        | Smooth animated playback speed control with +/- keys         | [Install](https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BYT%5D%20PLAYBACK%20SPEED.user.js)        |
 | `[MAIL] FILTER BY DOMAIN`    | Filter Gmail inbox by sender domain with one click           | [Install](https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BMAIL%5D%20FILTER%20MENU.user.js)         |
 | `[EXNESS] TRADING SHORTCUTS` | Quick trade mode with keyboard shortcuts for Exness terminal | [Install](https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BEXNESS%5D%20TRADING%20SHORTCUTS.user.js) |
 | `[TVC] TOOL SHORTCUTS`       | Keyboard shortcuts for TradingView chart tools               | [Install](https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BTVC%5D%20TOOL%20SHORTCUTS.user.js)       |
+
+## Install All
+
+Click **[Install All](https://raw.githubusercontent.com/downloaddoctor/userscripts/main/install-all.html)** to open all script install URLs in separate tabs at once.
 
 ## Setup
 
@@ -24,6 +29,16 @@ A collection of Violentmonkey userscripts for trading, email, and YouTube.
 Violentmonkey checks for updates automatically. Each script includes `@updateURL` pointing to this repo.
 
 ## Usage
+
+### [COMIC] AUTO SCROLL — Comic Reader Auto Scroll
+
+- Works on `comix.to/*` comic reader pages
+- Press **Space** to start/stop auto scroll
+- Press **+**/**-** to change scroll speed
+- Press **←**/**→** to switch chapters
+- Click the speed display (e.g. `3x`) to cycle through presets
+- Auto pauses at the end of each page, then continues to the next
+- Auto fullscreen on first interaction
 
 ### [YT] CHAT — YouTube Live Chat
 

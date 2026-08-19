@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Install All Userscripts</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      text-align: center;
+      max-width: 500px;
+    }
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+    }
+    p {
+      color: #a0a0a0;
+      line-height: 1.5;
+      margin-bottom: 2rem;
+    }
+    .status {
+      margin-top: 1.5rem;
+      font-size: 0.9rem;
+      color: #6ee7b7;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Installing all userscripts…</h1>
+    <p>Multiple tabs will open. Confirm installation in each Violentmonkey tab.</p>
+    <div class="status" id="status">Opening tabs…</div>
+  </div>
+
+  <script>
+    const urls = [
+      'https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BCOMIC%5D%20AUTO%20SCROLL.user.js',
+      'https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BYT%5D%20CHAT.user.js',
+      'https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BYT%5D%20PLAYBACK%20SPEED.user.js',
+      'https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BMAIL%5D%20FILTER%20MENU.user.js',
+      'https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BEXNESS%5D%20TRADING%20SHORTCUTS.user.js',
+      'https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BTVC%5D%20TOOL%20SHORTCUTS.user.js',
+    ]
+
+    urls.forEach((url, index) => {
+      setTimeout(() => {
+        window.open(url, '_blank')
+      }, index * 300)
+    })
+
+    document.getElementById('status').textContent =
+      'All tabs opened. Check your browser for Violentmonkey prompts.'
+  </script>
+</body>
+</html>

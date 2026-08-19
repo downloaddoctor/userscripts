@@ -22,8 +22,8 @@ const CONFIG = {
     '--color-cold-gray-800': '#0f0f0f',
   },
   font: {
-    family: 'Fira Code Retina',
-    size: '11.62px',
+    family: 'Fira Code',
+    size: '12px',
     weight: '500',
     features: '"liga" 1, "calt" 1',
     importUrl:
