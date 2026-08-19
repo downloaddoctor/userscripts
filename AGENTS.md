@@ -9,7 +9,7 @@ Userscripts collection for Violentmonkey covering trading, email, and YouTube wo
 .git/ # version control
 .prettierrc # code formatting config
 README.md # install/usage docs
-install-all.html # opens all userscript install URLs at once
+index.html # GitHub Pages entry, opens all userscript install URLs
 [COMIC] AUTO SCROLL.user.js # comic reader auto scroll
 [EXNESS] TRADING SHORTCUTS.user.js # Exness terminal trade shortcuts
 [MAIL] FILTER MENU.user.js # Gmail sender-domain filter

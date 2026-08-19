@@ -15,7 +15,7 @@ A collection of Violentmonkey userscripts for trading, email, and YouTube.
 
 ## Install All
 
-Click **[Install All](https://raw.githubusercontent.com/downloaddoctor/userscripts/main/install-all.html)** to open all script install URLs in separate tabs at once.
+Click **[Install All](https://downloaddoctor.github.io/userscripts/)** to open all script install URLs in separate tabs at once.
 
 ## Setup
 
