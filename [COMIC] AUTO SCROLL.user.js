@@ -460,8 +460,9 @@ document.addEventListener(
       return
     }
 
-    switch (e.code) {
-      case 'Space':
+    switch (e.key) {
+      case ' ':
+      case 'Spacebar':
         e.preventDefault()
         e.stopPropagation()
         e.stopImmediatePropagation()
