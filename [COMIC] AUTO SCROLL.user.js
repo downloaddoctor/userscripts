@@ -2,32 +2,74 @@
 // @name        [COMIC] AUTO SCROLL
 // @namespace   Violentmonkey Scripts
 // @icon        https://comix.to/assets/uploads/35595e3de3c99889c1bd2c56f3e3714fc0c457.png
-// @version     1.0.0
+// @version     2.0.0
 // @updateURL   https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BCOMIC%5D%20AUTO%20SCROLL.user.js
 // @downloadURL https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BCOMIC%5D%20AUTO%20SCROLL.user.js
 // @match       https://comix.to/*
 // @grant       none
 // @author      -
-// @description Optimized auto scroll for comic reader
+// @description Optimized auto scroll for comic reader with persistent settings
 // ==/UserScript==
 
 // ============ CONFIGURATION ============
-const CONFIG = {
+const DEFAULT_CONFIG = {
   PAUSE_DURATION: 500,
   LOAD_TIMEOUT: 15000,
   MIN_SPEED: 1,
   MAX_SPEED: 20,
   DEFAULT_SPEED: 3,
-  SPEED_PRESETS: [1, 2, 3, 4, 5, 8, 10, 15, 20],
+  SPEED_PRESETS: [1, 2, 3, 5, 7, 11, 13, 17, 19, 23, 31],
   CHECK_INTERVAL: 100,
   CONTROLS_CHECK_INTERVAL: 500,
   MAX_CONTROLS_ATTEMPTS: 50,
 }
 
+// ============ PERSISTENT SETTINGS MANAGEMENT ============
+const SETTINGS_KEY = 'comicAutoScrollSettings'
+
+function loadSettings() {
+  try {
+    const savedSettings = localStorage.getItem(SETTINGS_KEY)
+    if (savedSettings) {
+      const parsed = JSON.parse(savedSettings)
+      return {
+        speed: parsed.speed || DEFAULT_CONFIG.DEFAULT_SPEED,
+        autoFullscreen:
+          parsed.autoFullscreen !== undefined ? parsed.autoFullscreen : true,
+        theme: parsed.theme || 'black',
+        autoScrollEnabled: parsed.autoScrollEnabled || false,
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load settings:', e)
+  }
+
+  return {
+    speed: DEFAULT_CONFIG.DEFAULT_SPEED,
+    autoFullscreen: true,
+    theme: 'black',
+    autoScrollEnabled: false,
+  }
+}
+
+function saveSettings(settings) {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
+  } catch (e) {
+    console.warn('Failed to save settings:', e)
+  }
+}
+
+const settings = loadSettings()
+const CONFIG = {
+  ...DEFAULT_CONFIG,
+  DEFAULT_SPEED: settings.speed,
+}
+
 // ============ STATE MANAGEMENT ============
 const state = {
   scrolling: false,
-  speed: CONFIG.DEFAULT_SPEED,
+  speed: settings.speed,
   animationFrame: null,
   isRestarting: false,
   scrollElement: null,
@@ -36,17 +78,43 @@ const state = {
 }
 
 // ============ THEME ============
-const blackTheme = {
-  '--bg': '#000000',
-  '--bg-rgb': '0 0 0',
-  '--bg-2': '#050505',
-  '--bg-2-rgb': '5 5 5',
-  '--surface': '#0a0a0a',
-  '--surface-rgb': '10 10 10',
-  '--surface-2': '#121212',
-  '--surface-2-rgb': '18 18 18',
-  '--surface-3': '#1a1a1a',
-  '--surface-3-rgb': '26 26 26',
+const themes = {
+  black: {
+    '--bg': '#000000',
+    '--bg-rgb': '0 0 0',
+    '--bg-2': '#050505',
+    '--bg-2-rgb': '5 5 5',
+    '--surface': '#0a0a0a',
+    '--surface-rgb': '10 10 10',
+    '--surface-2': '#121212',
+    '--surface-2-rgb': '18 18 18',
+    '--surface-3': '#1a1a1a',
+    '--surface-3-rgb': '26 26 26',
+  },
+  dark: {
+    '--bg': '#1a1a1a',
+    '--bg-rgb': '26 26 26',
+    '--bg-2': '#1f1f1f',
+    '--bg-2-rgb': '31 31 31',
+    '--surface': '#242424',
+    '--surface-rgb': '36 36 36',
+    '--surface-2': '#2a2a2a',
+    '--surface-2-rgb': '42 42 42',
+    '--surface-3': '#333333',
+    '--surface-3-rgb': '51 51 51',
+  },
+  light: {
+    '--bg': '#ffffff',
+    '--bg-rgb': '255 255 255',
+    '--bg-2': '#f5f5f5',
+    '--bg-2-rgb': '245 245 245',
+    '--surface': '#fafafa',
+    '--surface-rgb': '250 250 250',
+    '--surface-2': '#f0f0f0',
+    '--surface-2-rgb': '240 240 240',
+    '--surface-3': '#e0e0e0',
+    '--surface-3-rgb': '224 224 224',
+  },
 }
 
 // ============ DOM CACHE ============
@@ -54,6 +122,7 @@ const DOM = {
   root: document.documentElement,
   autoScrollBtn: null,
   speedDisplay: null,
+  themeBtn: null,
   pages: () => document.querySelectorAll('.rpage-page'),
   floatCtl: () => document.querySelector('.rpage-floatctl__col'),
 }
@@ -68,13 +137,45 @@ const debounce = (fn, delay) => {
 }
 
 // ============ THEME APPLICATION ============
-function applyTheme() {
-  const entries = Object.entries(blackTheme)
+function applyTheme(themeName = settings.theme) {
+  const theme = themes[themeName] || themes.black
+  const entries = Object.entries(theme)
+
   requestAnimationFrame(() => {
     entries.forEach(([property, value]) => {
       DOM.root.style.setProperty(property, value)
     })
   })
+
+  settings.theme = themeName
+  saveSettings(settings)
+  updateThemeButton()
+}
+
+function cycleTheme() {
+  const themeNames = Object.keys(themes)
+  const currentIndex = themeNames.indexOf(settings.theme)
+  const nextIndex = (currentIndex + 1) % themeNames.length
+  const nextTheme = themeNames[nextIndex]
+
+  applyTheme(nextTheme)
+  console.log(`Theme changed to: ${nextTheme}`)
+
+  return nextTheme
+}
+
+function updateThemeButton() {
+  if (!DOM.themeBtn) return
+
+  const themeIcons = {
+    black: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 1 0 0-9h-1.8A7 7 0 1 0 4 15.5"></path></svg>`,
+    dark: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>`,
+    light: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>`,
+  }
+
+  DOM.themeBtn.innerHTML = themeIcons[settings.theme] || themeIcons.black
+  DOM.themeBtn.title = `Theme: ${settings.theme} (T)`
+  DOM.themeBtn.setAttribute('aria-label', `Theme: ${settings.theme} (T)`)
 }
 
 // ============ PAGE MANAGEMENT ============
@@ -161,20 +262,6 @@ function getScrollElement() {
   return state.scrollElement
 }
 
-function scrollToNextPage() {
-  const pages = DOM.pages()
-  if (!pages.length || state.currentPageIndex >= pages.length - 1) {
-    return false
-  }
-
-  const nextPage = pages[state.currentPageIndex + 1]
-  if (nextPage) {
-    nextPage.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    return true
-  }
-  return false
-}
-
 // ============ PAGE LOAD WAITING ============
 function waitForCurrentPageLoad() {
   return new Promise((resolve) => {
@@ -236,7 +323,7 @@ async function scrollLoop() {
       state.isRestarting = true
       setTimeout(() => {
         state.isRestarting = false
-        if (!state.scrolling) {
+        if (!state.scrolling && settings.autoScrollEnabled) {
           state.scrolling = true
           state.scrollStartPosition =
             getScrollElement()?.scrollTop ?? window.scrollY
@@ -261,6 +348,8 @@ function startAutoScroll() {
   if (state.scrolling) return
 
   state.scrolling = true
+  settings.autoScrollEnabled = true
+  saveSettings(settings)
   updateButtonState()
 
   const el = getScrollElement()
@@ -272,6 +361,8 @@ function startAutoScroll() {
 function stopAutoScroll() {
   state.scrolling = false
   state.isRestarting = false
+  settings.autoScrollEnabled = false
+  saveSettings(settings)
   updateButtonState()
   cancelAnimationFrame(state.animationFrame)
 }
@@ -308,6 +399,8 @@ function changeSpeed(delta) {
     CONFIG.MIN_SPEED,
     Math.min(CONFIG.MAX_SPEED, state.speed + delta),
   )
+  settings.speed = state.speed
+  saveSettings(settings)
   updateSpeedDisplay()
 }
 
@@ -315,11 +408,15 @@ function cycleSpeed() {
   const currentIndex = CONFIG.SPEED_PRESETS.indexOf(state.speed)
   const nextIndex = (currentIndex + 1) % CONFIG.SPEED_PRESETS.length
   state.speed = CONFIG.SPEED_PRESETS[nextIndex]
+  settings.speed = state.speed
+  saveSettings(settings)
   updateSpeedDisplay()
 }
 
 // ============ CHAPTER NAVIGATION ============
 function goToChapter(direction) {
+  const wasScrolling = state.scrolling
+
   if (state.scrolling) {
     stopAutoScroll()
   }
@@ -333,6 +430,30 @@ function goToChapter(direction) {
 
   if (targetButton) {
     targetButton.click()
+
+    // If auto-scroll was enabled, restart it after chapter loads
+    if (wasScrolling || settings.autoScrollEnabled) {
+      settings.autoScrollEnabled = true
+      saveSettings(settings)
+
+      // Wait for new chapter to load
+      setTimeout(async () => {
+        await waitForCurrentPageLoad()
+
+        // Scroll to top of new chapter
+        const el = getScrollElement()
+        if (el) {
+          el.scrollTop = 0
+        } else {
+          window.scrollTo(0, 0)
+        }
+
+        // Start auto-scroll if it was enabled
+        if (settings.autoScrollEnabled && !state.scrolling) {
+          startAutoScroll()
+        }
+      }, 1000) // Wait for chapter transition
+    }
   }
 }
 
@@ -366,8 +487,10 @@ function injectUI() {
   if (DOM.autoScrollBtn && !DOM.autoScrollBtn.isConnected) {
     DOM.autoScrollBtn = null
     DOM.speedDisplay = null
+    DOM.themeBtn = null
   }
 
+  // Auto-scroll button
   DOM.autoScrollBtn = document.createElement('button')
   DOM.autoScrollBtn.type = 'button'
   DOM.autoScrollBtn.id = 'autoScrollBtn'
@@ -376,6 +499,7 @@ function injectUI() {
   DOM.autoScrollBtn.title = 'Start auto scroll (Space)'
   DOM.autoScrollBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`
 
+  // Speed display
   DOM.speedDisplay = document.createElement('span')
   DOM.speedDisplay.id = 'autoScrollSpeed'
   DOM.speedDisplay.className = 'mono'
@@ -391,21 +515,45 @@ function injectUI() {
   DOM.speedDisplay.textContent = `${state.speed}x`
   DOM.speedDisplay.title = 'Click to cycle speed (1x-20x) / Use +/- keys'
 
+  // Theme button
+  DOM.themeBtn = document.createElement('button')
+  DOM.themeBtn.type = 'button'
+  DOM.themeBtn.id = 'themeToggleBtn'
+  DOM.themeBtn.className = 'rpage-floatctl__btn'
+  DOM.themeBtn.setAttribute('aria-label', `Theme: ${settings.theme} (T)`)
+  DOM.themeBtn.title = `Theme: ${settings.theme} (T)`
+
+  // Event listeners
   DOM.autoScrollBtn.addEventListener('click', (e) => {
     e.preventDefault()
     e.stopPropagation()
     toggleAutoScroll()
   })
+
   DOM.speedDisplay.addEventListener('click', cycleSpeed)
 
+  DOM.themeBtn.addEventListener('click', (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    cycleTheme()
+  })
+
+  // Insert elements
   const settingsBtn = floatCtl.querySelector('[aria-label="Settings"]')
   if (settingsBtn) {
-    floatCtl.insertBefore(DOM.speedDisplay, settingsBtn)
+    floatCtl.insertBefore(DOM.themeBtn, settingsBtn)
+    floatCtl.insertBefore(DOM.speedDisplay, DOM.themeBtn)
     floatCtl.insertBefore(DOM.autoScrollBtn, DOM.speedDisplay)
   } else {
     floatCtl.appendChild(DOM.autoScrollBtn)
     floatCtl.appendChild(DOM.speedDisplay)
+    floatCtl.appendChild(DOM.themeBtn)
   }
+
+  // Update UI to reflect current state
+  updateButtonState()
+  updateSpeedDisplay()
+  updateThemeButton()
 }
 
 // ============ CONTROLS WAITING ============
@@ -428,6 +576,8 @@ function waitForControls() {
 
 // ============ FULLSCREEN ============
 function autoFullscreen() {
+  if (!settings.autoFullscreen) return
+
   if (
     document.fullscreenElement ||
     document.webkitFullscreenElement ||
@@ -488,6 +638,12 @@ document.addEventListener(
         e.preventDefault()
         goToChapter('next')
         break
+      case 't':
+      case 'T':
+        if (e.ctrlKey || e.metaKey) break // Allow browser shortcuts
+        e.preventDefault()
+        cycleTheme()
+        break
     }
   },
   true,
@@ -506,9 +662,34 @@ window.addEventListener(
   true,
 )
 
+// ============ SCROLL PROGRESS ============
+let nextChapterTriggered = false
+
+window.addEventListener('scroll', () => {
+  const scrollTop = window.scrollY
+  const docHeight = document.documentElement.scrollHeight - window.innerHeight
+  const scrollPercent = (scrollTop / docHeight) * 100
+
+  console.log(`User scrolled ${scrollPercent}% of the page`)
+
+  const progressBar = document.getElementById('progress-bar')
+  if (progressBar) {
+    progressBar.style.width = scrollPercent + '%'
+  }
+
+  if (scrollPercent >= 100) {
+    if (!nextChapterTriggered) {
+      nextChapterTriggered = true
+      goToChapter('next')
+    }
+  } else {
+    nextChapterTriggered = false
+  }
+})
+
 // ============ INITIALIZATION ============
 function init() {
-  applyTheme()
+  applyTheme(settings.theme)
   waitForControls()
 
   const observer = new MutationObserver(
@@ -516,6 +697,7 @@ function init() {
       if (!DOM.autoScrollBtn || !DOM.autoScrollBtn.isConnected) {
         DOM.autoScrollBtn = null
         DOM.speedDisplay = null
+        DOM.themeBtn = null
         injectUI()
       }
       state.scrollElement = null
@@ -527,13 +709,25 @@ function init() {
     subtree: true,
   })
 
-  // Auto-fullscreen
-  autoFullscreen()
-  document.addEventListener('click', autoFullscreen, { once: true })
+  // Auto-fullscreen if enabled
+  if (settings.autoFullscreen) {
+    autoFullscreen()
+    document.addEventListener('click', autoFullscreen, { once: true })
+  }
+
+  // Restore auto-scroll state if it was enabled
+  if (settings.autoScrollEnabled && !state.scrolling) {
+    // Wait for page to load before starting auto-scroll
+    setTimeout(async () => {
+      await waitForCurrentPageLoad()
+      startAutoScroll()
+    }, 1000)
+  }
 
   console.log(
-    'Auto scroll controls integrated. Controls: Space=Start/Stop, +/-=Speed, ←/→=Chapters',
+    `Auto scroll controls integrated. Settings loaded: Speed=${settings.speed}x, Theme=${settings.theme}, AutoFullscreen=${settings.autoFullscreen}, AutoScroll=${settings.autoScrollEnabled}`,
   )
+  console.log('Controls: Space=Start/Stop, +/-=Speed, ←/→=Chapters, T=Theme')
 }
 
 // Start the script
