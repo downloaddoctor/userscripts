@@ -15,8 +15,6 @@
 const DEFAULT_CONFIG = {
   PAUSE_DURATION: 500,
   LOAD_TIMEOUT: 15000,
-  MIN_SPEED: 1,
-  MAX_SPEED: 20,
   DEFAULT_SPEED: 3,
   SPEED_PRESETS: [1, 2, 3, 5, 7, 11, 13, 17, 19, 23, 31],
   CHECK_INTERVAL: 100,
@@ -65,6 +63,11 @@ const CONFIG = {
   ...DEFAULT_CONFIG,
   DEFAULT_SPEED: settings.speed,
 }
+
+// O(1) speed -> preset-index lookup, built once
+const SPEED_PRESET_INDEX = new Map(
+  CONFIG.SPEED_PRESETS.map((speed, i) => [speed, i]),
+)
 
 // ============ STATE MANAGEMENT ============
 const state = {
@@ -123,7 +126,6 @@ const DOM = {
   autoScrollBtn: null,
   speedDisplay: null,
   themeBtn: null,
-  pages: () => document.querySelectorAll('.rpage-page'),
   floatCtl: () => document.querySelector('.rpage-floatctl__col'),
 }
 
@@ -180,30 +182,17 @@ function updateThemeButton() {
 
 // ============ PAGE MANAGEMENT ============
 function getCurrentVisiblePage() {
-  const pages = DOM.pages()
-  if (!pages.length) return null
+  const el = document.elementFromPoint(
+    window.innerWidth / 2,
+    window.innerHeight / 2,
+  )
+  const currentPage = el?.closest('.rpage-page') ?? null
 
-  let mostVisiblePage = null
-  let maxVisibility = 0
-  const viewportHeight = window.innerHeight
-
-  for (let i = 0; i < pages.length; i++) {
-    const rect = pages[i].getBoundingClientRect()
-    const visibleTop = Math.max(0, rect.top)
-    const visibleBottom = Math.min(viewportHeight, rect.bottom)
-    const visibleHeight = Math.max(0, visibleBottom - visibleTop)
-
-    if (visibleHeight > maxVisibility) {
-      maxVisibility = visibleHeight
-      mostVisiblePage = pages[i]
-    }
+  if (currentPage) {
+    state.currentPageHeight = currentPage.getBoundingClientRect().height
   }
 
-  if (mostVisiblePage) {
-    state.currentPageHeight = mostVisiblePage.getBoundingClientRect().height
-  }
-
-  return mostVisiblePage
+  return currentPage
 }
 
 function hasButtonToClick(page) {
@@ -222,11 +211,20 @@ function clickButtonInPage(page) {
 function isPageFullyLoaded(page) {
   if (!page) return true
 
+  // Fast path: already confirmed loaded, skip re-checking children
+  if (page.dataset.pageLoaded === 'true') return true
+
   const children = page.children
   if (children.length !== 1) return false
 
   const tagName = children[0].tagName.toLowerCase()
-  return tagName === 'img' || tagName === 'canvas'
+  const loaded = tagName === 'img' || tagName === 'canvas'
+
+  if (loaded) {
+    page.dataset.pageLoaded = 'true'
+  }
+
+  return loaded
 }
 
 // ============ SCROLL MANAGEMENT ============
@@ -394,18 +392,35 @@ async function toggleAutoScroll() {
 }
 
 // ============ SPEED CONTROL ============
-function changeSpeed(delta) {
-  state.speed = Math.max(
-    CONFIG.MIN_SPEED,
-    Math.min(CONFIG.MAX_SPEED, state.speed + delta),
-  )
+function changeSpeed(direction) {
+  const presets = CONFIG.SPEED_PRESETS
+  const currentIndex = SPEED_PRESET_INDEX.get(state.speed)
+  let nextIndex
+
+  if (currentIndex === undefined) {
+    // Not on a preset (legacy/custom value): snap to nearest preset first
+    nextIndex = presets.reduce(
+      (closest, val, i) =>
+        Math.abs(val - state.speed) < Math.abs(presets[closest] - state.speed)
+          ? i
+          : closest,
+      0,
+    )
+  } else {
+    nextIndex = Math.max(
+      0,
+      Math.min(presets.length - 1, currentIndex + direction),
+    )
+  }
+
+  state.speed = presets[nextIndex]
   settings.speed = state.speed
   saveSettings(settings)
   updateSpeedDisplay()
 }
 
 function cycleSpeed() {
-  const currentIndex = CONFIG.SPEED_PRESETS.indexOf(state.speed)
+  const currentIndex = SPEED_PRESET_INDEX.get(state.speed) ?? -1
   const nextIndex = (currentIndex + 1) % CONFIG.SPEED_PRESETS.length
   state.speed = CONFIG.SPEED_PRESETS[nextIndex]
   settings.speed = state.speed
@@ -430,6 +445,7 @@ function goToChapter(direction) {
 
   if (targetButton) {
     targetButton.click()
+    state.scrollElement = null // new chapter may swap the scroll container
 
     // If auto-scroll was enabled, restart it after chapter loads
     if (wasScrolling || settings.autoScrollEnabled) {
@@ -513,7 +529,9 @@ function injectUI() {
             text-align: center;
         `
   DOM.speedDisplay.textContent = `${state.speed}x`
-  DOM.speedDisplay.title = 'Click to cycle speed (1x-20x) / Use +/- keys'
+  const minSpeed = CONFIG.SPEED_PRESETS[0]
+  const maxSpeed = CONFIG.SPEED_PRESETS[CONFIG.SPEED_PRESETS.length - 1]
+  DOM.speedDisplay.title = `Click to cycle speed (${minSpeed}x-${maxSpeed}x) / Use +/- keys`
 
   // Theme button
   DOM.themeBtn = document.createElement('button')
@@ -597,6 +615,11 @@ function autoFullscreen() {
   }
 }
 
+// Fullscreen entering/exiting changes which element owns the scrollbar
+document.addEventListener('fullscreenchange', () => {
+  state.scrollElement = null
+})
+
 // ============ EVENT HANDLERS ============
 document.addEventListener(
   'keydown',
@@ -665,27 +688,39 @@ window.addEventListener(
 // ============ SCROLL PROGRESS ============
 let nextChapterTriggered = false
 
-window.addEventListener('scroll', () => {
-  const scrollTop = window.scrollY
-  const docHeight = document.documentElement.scrollHeight - window.innerHeight
-  const scrollPercent = (scrollTop / docHeight) * 100
+// Capture phase catches 'scroll' events from nested scroll containers too
+// (scroll events on non-window elements don't bubble, only capture)
+document.addEventListener(
+  'scroll',
+  () => {
+    const el = getScrollElement()
+    const usesWindow =
+      el === document.documentElement || el === document.scrollingElement
 
-  console.log(`User scrolled ${scrollPercent}% of the page`)
+    const scrollTop = usesWindow ? window.scrollY : el.scrollTop
+    const scrollHeight = usesWindow
+      ? document.documentElement.scrollHeight
+      : el.scrollHeight
+    const clientHeight = usesWindow ? window.innerHeight : el.clientHeight
+    const docHeight = scrollHeight - clientHeight
+    const scrollPercent = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0
 
-  const progressBar = document.getElementById('progress-bar')
-  if (progressBar) {
-    progressBar.style.width = scrollPercent + '%'
-  }
-
-  if (scrollPercent >= 100) {
-    if (!nextChapterTriggered) {
-      nextChapterTriggered = true
-      goToChapter('next')
+    const progressBar = document.getElementById('progress-bar')
+    if (progressBar) {
+      progressBar.style.width = scrollPercent + '%'
     }
-  } else {
-    nextChapterTriggered = false
-  }
-})
+
+    if (scrollPercent >= 100) {
+      if (!nextChapterTriggered) {
+        nextChapterTriggered = true
+        goToChapter('next')
+      }
+    } else {
+      nextChapterTriggered = false
+    }
+  },
+  true,
+)
 
 // ============ INITIALIZATION ============
 function init() {
@@ -700,7 +735,6 @@ function init() {
         DOM.themeBtn = null
         injectUI()
       }
-      state.scrollElement = null
     }, 250),
   )
 
