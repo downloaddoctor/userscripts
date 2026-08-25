@@ -14,12 +14,13 @@
 // ============ CONFIGURATION ============
 const DEFAULT_CONFIG = {
   PAUSE_DURATION: 500,
-  LOAD_TIMEOUT: 15000,
+  LOAD_TIMEOUT: 10000,
   DEFAULT_SPEED: 3,
-  SPEED_PRESETS: [1, 2, 3, 5, 7, 11, 13, 17, 19, 23, 31],
+  SPEED_PRESETS: [2, 3, 5, 7, 11, 19],
   CHECK_INTERVAL: 100,
   CONTROLS_CHECK_INTERVAL: 500,
   MAX_CONTROLS_ATTEMPTS: 50,
+  MANUAL_SCROLL_PAUSE: 800,
 }
 
 // ============ PERSISTENT SETTINGS MANAGEMENT ============
@@ -78,6 +79,7 @@ const state = {
   scrollElement: null,
   scrollStartPosition: 0,
   currentPageHeight: 0,
+  lastManualScrollTime: 0,
 }
 
 // ============ THEME ============
@@ -184,7 +186,7 @@ function updateThemeButton() {
 function getCurrentVisiblePage() {
   const el = document.elementFromPoint(
     window.innerWidth / 2,
-    window.innerHeight / 2,
+    window.innerHeight / 10,
   )
   const currentPage = el?.closest('.rpage-page') ?? null
 
@@ -261,25 +263,30 @@ function getScrollElement() {
 }
 
 // ============ PAGE LOAD WAITING ============
-function waitForCurrentPageLoad() {
+function waitForCurrentPageLoad(page) {
   return new Promise((resolve) => {
     const startTime = Date.now()
 
     const checkPage = () => {
+      // User scrolled away from `page` mid-wait: stop chasing a stale
+      // target and let the caller re-resolve the now-visible page.
+      if (state.lastManualScrollTime > startTime) {
+        resolve(false)
+        return
+      }
+
       if (Date.now() - startTime > CONFIG.LOAD_TIMEOUT) {
+        resolve(false)
+        return
+      }
+
+      if (isPageFullyLoaded(page)) {
         resolve(true)
         return
       }
 
-      const currentPage = getCurrentVisiblePage()
-
-      if (isPageFullyLoaded(currentPage)) {
-        resolve(true)
-        return
-      }
-
-      if (hasButtonToClick(currentPage)) {
-        clickButtonInPage(currentPage)
+      if (hasButtonToClick(page)) {
+        clickButtonInPage(page)
       }
 
       setTimeout(checkPage, CONFIG.CHECK_INTERVAL)
@@ -297,17 +304,25 @@ async function scrollLoop() {
 
   if (hasButtonToClick(currentPage)) {
     clickButtonInPage(currentPage)
-    await waitForCurrentPageLoad()
+    await waitForCurrentPageLoad(currentPage)
     if (!state.scrolling) return
   }
 
   if (!isPageFullyLoaded(currentPage)) {
-    await waitForCurrentPageLoad()
+    await waitForCurrentPageLoad(currentPage)
     if (!state.scrolling) return
   }
 
   const el = getScrollElement()
   const currentPosition = el ? el.scrollTop : window.scrollY
+  // User is actively scrolling manually: yield to them instead of fighting
+  // for scroll position. Keep tracking their position as the new baseline
+  // so the page-height distance check stays accurate once we resume.
+  if (Date.now() - state.lastManualScrollTime < CONFIG.MANUAL_SCROLL_PAUSE) {
+    state.scrollStartPosition = currentPosition
+    state.animationFrame = requestAnimationFrame(scrollLoop)
+    return
+  }
 
   if (
     Math.abs(currentPosition - state.scrollStartPosition) >=
@@ -380,7 +395,7 @@ async function toggleAutoScroll() {
     }
 
     if (!isPageFullyLoaded(currentPage)) {
-      await waitForCurrentPageLoad()
+      await waitForCurrentPageLoad(currentPage)
     }
 
     if (!state.scrolling) {
@@ -454,16 +469,6 @@ function goToChapter(direction) {
 
       // Wait for new chapter to load
       setTimeout(async () => {
-        await waitForCurrentPageLoad()
-
-        // Scroll to top of new chapter
-        const el = getScrollElement()
-        if (el) {
-          el.scrollTop = 0
-        } else {
-          window.scrollTo(0, 0)
-        }
-
         // Start auto-scroll if it was enabled
         if (settings.autoScrollEnabled && !state.scrolling) {
           startAutoScroll()
@@ -615,6 +620,30 @@ function autoFullscreen() {
   }
 }
 
+// Detect manual scroll intent (wheel/touch) so scrollLoop yields to the
+// user instead of overwriting their scroll position every frame.
+document.addEventListener(
+  'wheel',
+  () => {
+    state.lastManualScrollTime = Date.now()
+  },
+  { passive: true, capture: true },
+)
+document.addEventListener(
+  'touchstart',
+  () => {
+    state.lastManualScrollTime = Date.now()
+  },
+  { passive: true, capture: true },
+)
+document.addEventListener(
+  'touchmove',
+  () => {
+    state.lastManualScrollTime = Date.now()
+  },
+  { passive: true, capture: true },
+)
+
 // Fullscreen entering/exiting changes which element owns the scrollbar
 document.addEventListener('fullscreenchange', () => {
   state.scrollElement = null
@@ -753,7 +782,7 @@ function init() {
   if (settings.autoScrollEnabled && !state.scrolling) {
     // Wait for page to load before starting auto-scroll
     setTimeout(async () => {
-      await waitForCurrentPageLoad()
+      await waitForCurrentPageLoad(getCurrentVisiblePage())
       startAutoScroll()
     }, 1000)
   }
