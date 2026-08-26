@@ -37,6 +37,9 @@ function loadSettings() {
           parsed.autoFullscreen !== undefined ? parsed.autoFullscreen : true,
         theme: parsed.theme || 'black',
         autoScrollEnabled: parsed.autoScrollEnabled || false,
+        skipStart:
+          typeof parsed.skipStart === 'number' ? parsed.skipStart : null,
+        skipEnd: typeof parsed.skipEnd === 'number' ? parsed.skipEnd : null,
       }
     }
   } catch (e) {
@@ -48,6 +51,8 @@ function loadSettings() {
     autoFullscreen: true,
     theme: 'black',
     autoScrollEnabled: false,
+    skipStart: null,
+    skipEnd: null,
   }
 }
 
@@ -128,6 +133,7 @@ const DOM = {
   autoScrollBtn: null,
   speedDisplay: null,
   themeBtn: null,
+  skipBtn: null,
   floatCtl: () => document.querySelector('.rpage-floatctl__col'),
 }
 
@@ -224,6 +230,112 @@ function isPageFullyLoaded(page) {
   }
 
   return loaded
+}
+
+// ============ PAGE SKIP (intro/outro) ============
+// Removes pages outside the [skipStart, skipEnd] range from the DOM,
+// based on each page's data-page attribute (e.g. <div data-page="12">).
+function applyPageSkip() {
+  if (settings.skipStart == null && settings.skipEnd == null) return
+
+  const pages = Array.from(
+    document.querySelectorAll('.rpage-page[data-page]'),
+  ).sort((a, b) => parseInt(a.dataset.page, 10) - parseInt(b.dataset.page, 10))
+  if (!pages.length) return
+
+  // Remove pages before skipStart, by literal page number
+  if (settings.skipStart != null) {
+    pages.forEach((page) => {
+      const pageNum = parseInt(page.dataset.page, 10)
+      if (!Number.isNaN(pageNum) && pageNum < settings.skipStart) {
+        page.remove()
+      }
+    })
+  }
+
+  if (settings.skipEnd != null) {
+    const remaining = pages.filter((page) => page.isConnected)
+
+    if (settings.skipEnd < 0) {
+      // Negative skipEnd trims the last N pages by position (array[:-N]
+      // style), without needing to know the actual last page number.
+      const cutoff = remaining.length + settings.skipEnd
+      remaining.forEach((page, i) => {
+        if (i >= cutoff) page.remove()
+      })
+    } else {
+      remaining.forEach((page) => {
+        const pageNum = parseInt(page.dataset.page, 10)
+        if (!Number.isNaN(pageNum) && pageNum > settings.skipEnd) {
+          page.remove()
+        }
+      })
+    }
+  }
+}
+
+// Updates the skip button's title/aria-label to reflect the current range.
+function updateSkipButtonTitle() {
+  if (!DOM.skipBtn) return
+
+  let label = 'Skip intro/outro pages'
+  if (settings.skipStart != null || settings.skipEnd != null) {
+    const start = settings.skipStart ?? 1
+    if (settings.skipEnd == null) {
+      label = `Skip pages: keep ${start} to end`
+    } else if (settings.skipEnd < 0) {
+      const count = -settings.skipEnd
+      label = `Skip pages: keep ${start}, except last ${count} page${count === 1 ? '' : 's'}`
+    } else {
+      label = `Skip pages: keep ${start}-${settings.skipEnd}`
+    }
+  }
+
+  DOM.skipBtn.title = label
+  DOM.skipBtn.setAttribute('aria-label', label)
+}
+
+function promptSkipRange() {
+  const current =
+    settings.skipStart != null || settings.skipEnd != null
+      ? `${settings.skipStart ?? ''}:${settings.skipEnd ?? ''}`
+      : ''
+
+  const input = window.prompt(
+    'Skip intro/outro pages.\n' +
+      'Format: "start:end" (like a Python slice), e.g. "3:45".\n' +
+      'End can be negative to count from the last page, e.g. "1:-2"\n' +
+      '  keeps everything except the last 2 pages.\n' +
+      'Or just a start page, e.g. "3", to only skip the intro.\n' +
+      'Leave empty to disable.',
+    current,
+  )
+
+  if (input === null) return // user cancelled
+
+  const trimmed = input.trim()
+
+  if (!trimmed) {
+    settings.skipStart = null
+    settings.skipEnd = null
+    saveSettings(settings)
+    return
+  }
+
+  const parts = trimmed.split(':').map((s) => s.trim())
+  const start = parseInt(parts[0], 10)
+  const end = parts.length > 1 ? parseInt(parts[1], 10) : NaN
+
+  if (Number.isNaN(start)) {
+    window.alert('Invalid page number.')
+    return
+  }
+
+  settings.skipStart = start
+  settings.skipEnd = Number.isNaN(end) ? null : end
+  saveSettings(settings)
+  applyPageSkip()
+  updateSkipButtonTitle()
 }
 
 // ============ SCROLL MANAGEMENT ============
@@ -477,6 +589,8 @@ function goToChapter(direction) {
 
       // Wait for new chapter to load
       setTimeout(async () => {
+        applyPageSkip()
+
         // Start auto-scroll if it was enabled
         if (settings.autoScrollEnabled && !state.scrolling) {
           startAutoScroll()
@@ -540,6 +654,7 @@ function injectUI() {
     DOM.autoScrollBtn = null
     DOM.speedDisplay = null
     DOM.themeBtn = null
+    DOM.skipBtn = null
   }
 
   // Auto-scroll button
@@ -577,6 +692,16 @@ function injectUI() {
   DOM.themeBtn.setAttribute('aria-label', `Theme: ${settings.theme} (T)`)
   DOM.themeBtn.title = `Theme: ${settings.theme} (T)`
 
+  // Skip intro/outro button
+  DOM.skipBtn = document.createElement('button')
+  DOM.skipBtn.type = 'button'
+  DOM.skipBtn.id = 'skipRangeBtn'
+  DOM.skipBtn.className = 'rpage-floatctl__btn'
+  DOM.skipBtn.setAttribute('aria-label', 'Skip intro/outro pages')
+  DOM.skipBtn.title = 'Skip intro/outro pages'
+  DOM.skipBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><line x1="20" y1="4" x2="8.12" y2="15.88"></line><line x1="14.47" y1="14.48" x2="20" y2="20"></line><line x1="8.12" y1="8.12" x2="12" y2="12"></line></svg>`
+  updateSkipButtonTitle()
+
   // Event listeners
   DOM.autoScrollBtn.addEventListener('click', (e) => {
     e.preventDefault()
@@ -592,16 +717,24 @@ function injectUI() {
     cycleTheme()
   })
 
+  DOM.skipBtn.addEventListener('click', (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    promptSkipRange()
+  })
+
   // Insert elements
   const settingsBtn = floatCtl.querySelector('[aria-label="Settings"]')
   if (settingsBtn) {
-    floatCtl.insertBefore(DOM.themeBtn, settingsBtn)
+    floatCtl.insertBefore(DOM.skipBtn, settingsBtn)
+    floatCtl.insertBefore(DOM.themeBtn, DOM.skipBtn)
     floatCtl.insertBefore(DOM.speedDisplay, DOM.themeBtn)
     floatCtl.insertBefore(DOM.autoScrollBtn, DOM.speedDisplay)
   } else {
     floatCtl.appendChild(DOM.autoScrollBtn)
     floatCtl.appendChild(DOM.speedDisplay)
     floatCtl.appendChild(DOM.themeBtn)
+    floatCtl.appendChild(DOM.skipBtn)
   }
 
   // Update UI to reflect current state
@@ -792,13 +925,17 @@ document.addEventListener(
 function init() {
   applyTheme(settings.theme)
   waitForControls()
+  applyPageSkip()
 
   const observer = new MutationObserver(
     debounce(() => {
+      applyPageSkip()
+
       if (!DOM.autoScrollBtn || !DOM.autoScrollBtn.isConnected) {
         DOM.autoScrollBtn = null
         DOM.speedDisplay = null
         DOM.themeBtn = null
+        DOM.skipBtn = null
         injectUI()
       }
     }, 250),
