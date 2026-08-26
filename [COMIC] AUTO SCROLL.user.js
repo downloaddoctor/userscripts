@@ -411,15 +411,20 @@ async function scrollLoop() {
 
   const currentPage = getCurrentVisiblePage()
 
-  if (hasButtonToClick(currentPage)) {
-    clickButtonInPage(currentPage)
-    await waitForCurrentPageLoad(currentPage)
-    if (!state.scrolling) return
-  }
+  // If we can't identify a page under the viewport point (e.g. between
+  // pages, momentarily blank), don't block waiting for a page that isn't
+  // there — just keep scrolling and try again next frame.
+  if (currentPage) {
+    if (hasButtonToClick(currentPage)) {
+      clickButtonInPage(currentPage)
+      await waitForCurrentPageLoad(currentPage)
+      if (!state.scrolling) return
+    }
 
-  if (!isPageFullyLoaded(currentPage)) {
-    await waitForCurrentPageLoad(currentPage)
-    if (!state.scrolling) return
+    if (!isPageFullyLoaded(currentPage)) {
+      await waitForCurrentPageLoad(currentPage)
+      if (!state.scrolling) return
+    }
   }
 
   // Establish the baseline page for this scroll leg (first frame after a
