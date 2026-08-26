@@ -2,7 +2,7 @@
 // @name        [COMIC] AUTO SCROLL
 // @namespace   Violentmonkey Scripts
 // @icon        https://comix.to/assets/uploads/35595e3de3c99889c1bd2c56f3e3714fc0c457.png
-// @version     2.0.0
+// @version     2.1.0
 // @updateURL   https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BCOMIC%5D%20AUTO%20SCROLL.user.js
 // @downloadURL https://raw.githubusercontent.com/downloaddoctor/userscripts/main/%5BCOMIC%5D%20AUTO%20SCROLL.user.js
 // @match       https://comix.to/*
@@ -77,9 +77,9 @@ const state = {
   animationFrame: null,
   isRestarting: false,
   scrollElement: null,
-  scrollStartPosition: 0,
-  currentPageHeight: 0,
+  scrollStartPage: null,
   lastManualScrollTime: 0,
+  manualYielding: false,
 }
 
 // ============ THEME ============
@@ -186,19 +186,14 @@ function updateThemeButton() {
 function getCurrentVisiblePage() {
   const el = document.elementFromPoint(
     window.innerWidth / 2,
-    window.innerHeight / 10,
+    window.innerHeight / 1.1,
   )
-  const currentPage = el?.closest('.rpage-page') ?? null
-
-  if (currentPage) {
-    state.currentPageHeight = currentPage.getBoundingClientRect().height
-  }
-
-  return currentPage
+  return el?.closest('.rpage-page') ?? null
 }
 
 function hasButtonToClick(page) {
-  return page?.querySelector('button, [role="button"]') !== null
+  if (!page) return false
+  return page.querySelector('button, [role="button"]') !== null
 }
 
 function clickButtonInPage(page) {
@@ -211,7 +206,9 @@ function clickButtonInPage(page) {
 }
 
 function isPageFullyLoaded(page) {
-  if (!page) return true
+  // No page found at viewport center (not yet rendered/mounted): treat as
+  // not loaded so the caller waits, instead of skipping the pause entirely
+  if (!page) return false
 
   // Fast path: already confirmed loaded, skip re-checking children
   if (page.dataset.pageLoaded === 'true') return true
@@ -313,33 +310,46 @@ async function scrollLoop() {
     if (!state.scrolling) return
   }
 
-  const el = getScrollElement()
-  const currentPosition = el ? el.scrollTop : window.scrollY
+  // Establish the baseline page for this scroll leg (first frame after a
+  // (re)start), so the boundary check below has something to compare against
+  if (!state.scrollStartPage) {
+    state.scrollStartPage = currentPage
+  }
+
   // User is actively scrolling manually: yield to them instead of fighting
-  // for scroll position. Keep tracking their position as the new baseline
-  // so the page-height distance check stays accurate once we resume.
+  // for scroll position.
   if (Date.now() - state.lastManualScrollTime < CONFIG.MANUAL_SCROLL_PAUSE) {
-    state.scrollStartPosition = currentPosition
+    if (!state.manualYielding) {
+      state.manualYielding = true
+      updateButtonState()
+    }
     state.animationFrame = requestAnimationFrame(scrollLoop)
     return
   }
 
+  if (state.manualYielding) {
+    state.manualYielding = false
+    updateButtonState()
+  }
+
+  // DOM-boundary check: the page centered in the viewport is no longer the
+  // page we started this leg on — we've genuinely crossed into the next page
   if (
-    Math.abs(currentPosition - state.scrollStartPosition) >=
-    state.currentPageHeight
+    currentPage &&
+    state.scrollStartPage &&
+    currentPage !== state.scrollStartPage
   ) {
     state.scrolling = false
-    updateButtonState()
+    state.scrollStartPage = null // re-established on resume
     cancelAnimationFrame(state.animationFrame)
 
     if (!state.isRestarting) {
       state.isRestarting = true
+      updateButtonState()
       setTimeout(() => {
         state.isRestarting = false
         if (!state.scrolling && settings.autoScrollEnabled) {
           state.scrolling = true
-          state.scrollStartPosition =
-            getScrollElement()?.scrollTop ?? window.scrollY
           updateButtonState()
           scrollLoop()
         }
@@ -348,6 +358,7 @@ async function scrollLoop() {
     return
   }
 
+  const el = getScrollElement()
   if (el) {
     el.scrollTop += state.speed
   } else {
@@ -361,12 +372,10 @@ function startAutoScroll() {
   if (state.scrolling) return
 
   state.scrolling = true
+  state.scrollStartPage = null
   settings.autoScrollEnabled = true
   saveSettings(settings)
   updateButtonState()
-
-  const el = getScrollElement()
-  state.scrollStartPosition = el ? el.scrollTop : window.scrollY
 
   scrollLoop()
 }
@@ -374,6 +383,7 @@ function startAutoScroll() {
 function stopAutoScroll() {
   state.scrolling = false
   state.isRestarting = false
+  state.manualYielding = false
   settings.autoScrollEnabled = false
   saveSettings(settings)
   updateButtonState()
@@ -399,8 +409,6 @@ async function toggleAutoScroll() {
     }
 
     if (!state.scrolling) {
-      const el = getScrollElement()
-      state.scrollStartPosition = el ? el.scrollTop : window.scrollY
       startAutoScroll()
     }
   }
@@ -482,14 +490,37 @@ function goToChapter(direction) {
 function updateButtonState() {
   if (!DOM.autoScrollBtn) return
 
-  const icon = state.scrolling
-    ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`
-    : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`
+  const icons = {
+    // Play triangle: idle, user stopped auto-scroll
+    idle: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`,
+    // Pause bars: actively auto-scrolling
+    scrolling: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`,
+    // Clock: paused at page end, about to resume
+    pageEndPause: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15.5 14"></polyline></svg>`,
+    // Stacked chevrons: yielding because the user is scrolling manually
+    manualYield: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline><polyline points="6 15 12 21 18 15"></polyline></svg>`,
+  }
 
-  DOM.autoScrollBtn.innerHTML = icon
-  const label = state.scrolling
-    ? 'Stop auto scroll (Space)'
-    : 'Start auto scroll (Space)'
+  let iconKey
+  let label
+
+  if (state.scrolling) {
+    if (state.manualYielding) {
+      iconKey = 'manualYield'
+      label = 'Paused — manual scroll detected'
+    } else {
+      iconKey = 'scrolling'
+      label = 'Stop auto scroll (Space)'
+    }
+  } else if (state.isRestarting) {
+    iconKey = 'pageEndPause'
+    label = 'Paused at page end, resuming shortly…'
+  } else {
+    iconKey = 'idle'
+    label = 'Start auto scroll (Space)'
+  }
+
+  DOM.autoScrollBtn.innerHTML = icons[iconKey]
   DOM.autoScrollBtn.setAttribute('aria-label', label)
   DOM.autoScrollBtn.title = label
 }
@@ -690,6 +721,12 @@ document.addEventListener(
         e.preventDefault()
         goToChapter('next')
         break
+      case 'ArrowUp':
+      case 'ArrowDown':
+        // Let the browser perform its native scroll; just mark manual
+        // intent so scrollLoop() yields instead of overwriting it
+        state.lastManualScrollTime = Date.now()
+        break
       case 't':
       case 'T':
         if (e.ctrlKey || e.metaKey) break // Allow browser shortcuts
@@ -784,7 +821,7 @@ function init() {
     setTimeout(async () => {
       await waitForCurrentPageLoad(getCurrentVisiblePage())
       startAutoScroll()
-    }, 1000)
+    }, 3000)
   }
 
   console.log(
