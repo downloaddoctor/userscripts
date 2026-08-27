@@ -12,6 +12,26 @@
 // ==/UserScript==
 
 // ============ CONFIGURATION ============
+const CSS = `
+  .rpage-page[data-hidden='true'] {
+    height: 0 !important;
+    min-height: 0 !important;
+    max-height: 0 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+  }
+`
+
+function injectCSS() {
+  const style = document.createElement('style')
+  style.textContent = CSS
+  document.head.appendChild(style)
+}
+
 const DEFAULT_CONFIG = {
   PAUSE_DURATION: 500,
   LOAD_TIMEOUT: 10000,
@@ -25,40 +45,59 @@ const DEFAULT_CONFIG = {
 
 // ============ PERSISTENT SETTINGS MANAGEMENT ============
 const SETTINGS_KEY = 'comicAutoScrollSettings'
+const getComicKey = () => {
+  const parts = location.pathname.split('/').filter(Boolean)
+  const titleIndex = parts.indexOf('title')
+  return titleIndex !== -1 ? parts[titleIndex + 1]?.split('-')[0] : ''
+}
 
 function loadSettings() {
+  const comicKey = getComicKey()
+  const defaults = {
+    speed: DEFAULT_CONFIG.DEFAULT_SPEED,
+    autoFullscreen: true,
+    theme: 'black',
+    autoScrollEnabled: false,
+    skipStart: 0,
+    skipEnd: 0,
+  }
+
   try {
     const savedSettings = localStorage.getItem(SETTINGS_KEY)
-    if (savedSettings) {
-      const parsed = JSON.parse(savedSettings)
-      return {
-        speed: parsed.speed || DEFAULT_CONFIG.DEFAULT_SPEED,
-        autoFullscreen:
-          parsed.autoFullscreen !== undefined ? parsed.autoFullscreen : true,
-        theme: parsed.theme || 'black',
-        autoScrollEnabled: parsed.autoScrollEnabled || false,
-        skipStart:
-          typeof parsed.skipStart === 'number' ? parsed.skipStart : null,
-        skipEnd: typeof parsed.skipEnd === 'number' ? parsed.skipEnd : null,
-      }
+    if (!savedSettings) return defaults
+
+    const parsed = JSON.parse(savedSettings)
+    const global = parsed.global || {}
+    const perComic = parsed.comics?.[comicKey] || {}
+
+    return {
+      speed: global.speed ?? defaults.speed,
+      autoFullscreen: global.autoFullscreen ?? defaults.autoFullscreen,
+      theme: global.theme ?? defaults.theme,
+      autoScrollEnabled: global.autoScrollEnabled ?? defaults.autoScrollEnabled,
+      skipStart: perComic?.skipStart ?? 0,
+      skipEnd: perComic?.skipEnd ?? 0,
     }
   } catch (e) {
     console.warn('Failed to load settings:', e)
   }
 
-  return {
-    speed: DEFAULT_CONFIG.DEFAULT_SPEED,
-    autoFullscreen: true,
-    theme: 'black',
-    autoScrollEnabled: false,
-    skipStart: null,
-    skipEnd: null,
-  }
+  return defaults
 }
 
 function saveSettings(settings) {
   try {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
+    const comicKey = getComicKey()
+    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')
+    const comics = saved.comics || {}
+    const comic = comics[comicKey] || {}
+
+    comic.skipStart = settings.skipStart
+    comic.skipEnd = settings.skipEnd
+
+    comics[comicKey] = comic
+    saved.comics = comics
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(saved))
   } catch (e) {
     console.warn('Failed to save settings:', e)
   }
@@ -233,44 +272,27 @@ function isPageFullyLoaded(page) {
 }
 
 // ============ PAGE SKIP (intro/outro) ============
-// Removes pages outside the [skipStart, skipEnd] range from the DOM,
-// based on each page's data-page attribute (e.g. <div data-page="12">).
-function applyPageSkip() {
-  if (settings.skipStart == null && settings.skipEnd == null) return
+// Marks pages outside the [skipStart, skipEnd] range with data-hidden=true,
+// based on each page's data-page attribute (e.g. <div data-page="12">),
+// so pages can be restored later without losing state.
+const parsePageNum = (page) => parseInt(page.dataset.page, 10)
 
-  const pages = Array.from(
-    document.querySelectorAll('.rpage-page[data-page]'),
-  ).sort((a, b) => parseInt(a.dataset.page, 10) - parseInt(b.dataset.page, 10))
+function applyPageSkip() {
+  const start = settings.skipStart
+  const end = settings.skipEnd
+
+  if (start === 0 && end === 0) return
+
+  const pages = document.querySelectorAll('.rpage-page[data-page]')
   if (!pages.length) return
 
-  // Remove pages before skipStart, by literal page number
-  if (settings.skipStart != null) {
-    pages.forEach((page) => {
-      const pageNum = parseInt(page.dataset.page, 10)
-      if (!Number.isNaN(pageNum) && pageNum < settings.skipStart) {
-        page.remove()
-      }
-    })
-  }
+  const total = pages.length
+  const first = Math.max(0, start)
+  const last = end > 0 ? end : total + end
 
-  if (settings.skipEnd != null) {
-    const remaining = pages.filter((page) => page.isConnected)
-
-    if (settings.skipEnd < 0) {
-      // Negative skipEnd trims the last N pages by position (array[:-N]
-      // style), without needing to know the actual last page number.
-      const cutoff = remaining.length + settings.skipEnd
-      remaining.forEach((page, i) => {
-        if (i >= cutoff) page.remove()
-      })
-    } else {
-      remaining.forEach((page) => {
-        const pageNum = parseInt(page.dataset.page, 10)
-        if (!Number.isNaN(pageNum) && pageNum > settings.skipEnd) {
-          page.remove()
-        }
-      })
-    }
+  for (let i = 0; i < total; i++) {
+    if (i < first || i > last) pages[i].dataset.hidden = 'true'
+    else delete pages[i].dataset.hidden
   }
 }
 
@@ -278,16 +300,16 @@ function applyPageSkip() {
 function updateSkipButtonTitle() {
   if (!DOM.skipBtn) return
 
-  let label = 'Skip intro/outro pages'
-  if (settings.skipStart != null || settings.skipEnd != null) {
-    const start = settings.skipStart ?? 1
-    if (settings.skipEnd == null) {
-      label = `Skip pages: keep ${start} to end`
+  let label = 'Toggle hidden pages / Double-click to set skip'
+  if (settings.skipStart !== 0 || settings.skipEnd !== 0) {
+    const start = settings.skipStart || 1
+    if (settings.skipEnd === 0) {
+      label = `Toggle hidden pages / Skip: keep ${start} to end`
     } else if (settings.skipEnd < 0) {
       const count = -settings.skipEnd
-      label = `Skip pages: keep ${start}, except last ${count} page${count === 1 ? '' : 's'}`
+      label = `Toggle hidden pages / Skip: keep ${start}, except last ${count} page${count === 1 ? '' : 's'}`
     } else {
-      label = `Skip pages: keep ${start}-${settings.skipEnd}`
+      label = `Toggle hidden pages / Skip: keep ${start}-${settings.skipEnd}`
     }
   }
 
@@ -297,8 +319,8 @@ function updateSkipButtonTitle() {
 
 function promptSkipRange() {
   const current =
-    settings.skipStart != null || settings.skipEnd != null
-      ? `${settings.skipStart ?? ''}:${settings.skipEnd ?? ''}`
+    settings.skipStart !== 0 || settings.skipEnd !== 0
+      ? `${settings.skipStart}:${settings.skipEnd}`
       : ''
 
   const input = window.prompt(
@@ -316,9 +338,11 @@ function promptSkipRange() {
   const trimmed = input.trim()
 
   if (!trimmed) {
-    settings.skipStart = null
-    settings.skipEnd = null
+    settings.skipStart = 0
+    settings.skipEnd = 0
     saveSettings(settings)
+    applyPageSkip()
+    updateSkipButtonTitle()
     return
   }
 
@@ -332,10 +356,21 @@ function promptSkipRange() {
   }
 
   settings.skipStart = start
-  settings.skipEnd = Number.isNaN(end) ? null : end
+  settings.skipEnd = Number.isNaN(end) ? 0 : end
   saveSettings(settings)
   applyPageSkip()
   updateSkipButtonTitle()
+}
+
+function toggleHiddenPages() {
+  const hiddenPages = document.querySelectorAll(
+    '.rpage-page[data-page][data-hidden="true"]',
+  )
+  if (!hiddenPages.length) return
+
+  hiddenPages.forEach((page) => {
+    delete page.dataset.hidden
+  })
 }
 
 // ============ SCROLL MANAGEMENT ============
@@ -725,6 +760,12 @@ function injectUI() {
   DOM.skipBtn.addEventListener('click', (e) => {
     e.preventDefault()
     e.stopPropagation()
+    toggleHiddenPages()
+  })
+
+  DOM.skipBtn.addEventListener('dblclick', (e) => {
+    e.preventDefault()
+    e.stopPropagation()
     promptSkipRange()
   })
 
@@ -839,7 +880,6 @@ document.addEventListener(
         e.stopImmediatePropagation()
 
         toggleAutoScroll()
-        autoFullscreen()
         break
       case '+':
       case '=':
@@ -928,20 +968,20 @@ document.addEventListener(
 
 // ============ INITIALIZATION ============
 function init() {
+  injectCSS()
   applyTheme(settings.theme)
   waitForControls()
   applyPageSkip()
 
   const observer = new MutationObserver(
     debounce(() => {
-      applyPageSkip()
-
       if (!DOM.autoScrollBtn || !DOM.autoScrollBtn.isConnected) {
         DOM.autoScrollBtn = null
         DOM.speedDisplay = null
         DOM.themeBtn = null
         DOM.skipBtn = null
         injectUI()
+        applyPageSkip()
       }
     }, 250),
   )
